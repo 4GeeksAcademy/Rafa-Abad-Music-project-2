@@ -6,12 +6,11 @@ from flask import Flask, request, jsonify, url_for, send_from_directory
 from flask_migrate import Migrate
 from flask_swagger import swagger
 from api.utils import APIException, generate_sitemap
-from api.models import db
+from api.models import db, User, Offer, Match, Message, Review
 from api.routes import api
 from api.admin import setup_admin
 from api.commands import setup_commands
-
-# from models import Person
+from flask_jwt_extended import JWTManager
 
 ENV = "development" if os.getenv("FLASK_DEBUG") == "1" else "production"
 static_file_dir = os.path.join(os.path.dirname(
@@ -28,8 +27,9 @@ else:
     app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:////tmp/test.db"
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-MIGRATE = Migrate(app, db, compare_type=True)
 db.init_app(app)
+MIGRATE = Migrate(app, db, compare_type=True)
+
 
 # add the admin
 setup_admin(app)
@@ -39,6 +39,9 @@ setup_commands(app)
 
 # Add all endpoints form the API with a "api" prefix
 app.register_blueprint(api, url_prefix='/api')
+
+app.config["JWT_SECRET_KEY"] = "super-secret-change-this"  # use env var in real life
+jwt = JWTManager(app)
 
 # Handle/serialize errors like a JSON object
 
@@ -70,3 +73,50 @@ def serve_any_other_file(path):
 if __name__ == '__main__':
     PORT = int(os.environ.get('PORT', 3001))
     app.run(host='0.0.0.0', port=PORT, debug=True)
+
+""" import os
+from flask import Flask, jsonify
+from flask_migrate import Migrate
+from flask_cors import CORS
+from flask_swagger import swagger
+from models import db, User, Offer, Match, Message, Review """
+""" 
+from utils import APIException, generate_sitemap
+from admin import setup_admin
+
+app = Flask(__name__)
+app.url_map.strict_slashes = False
+
+db_url = os.getenv("DATABASE_URL")
+if db_url:
+    # Heroku old scheme fix
+    app.config["SQLALCHEMY_DATABASE_URI"] = db_url.replace("postgres://", "postgresql://")
+else:
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
+
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+# INIT in this order
+db.init_app(app)
+Migrate(app, db)   # registers `flask db` commands
+CORS(app)
+setup_admin(app)
+
+# Errors as JSON
+@app.errorhandler(APIException)
+def handle_invalid_usage(error):
+    return jsonify(error.to_dict()), error.status_code
+
+# Sitemap
+@app.route("/")
+def sitemap():
+    return generate_sitemap(app)
+
+@app.route("/user", methods=["GET"])
+def handle_hello():
+    return jsonify({"msg": "Hello, this is your GET /user response"}), 200
+
+# this only runs if `$ python src/app.py` is executed directly
+if __name__ == "__main__":
+    PORT = int(os.environ.get("PORT", 3000))
+    app.run(host="0.0.0.0", port=PORT, debug=False) """
