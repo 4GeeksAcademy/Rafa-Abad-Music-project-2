@@ -29,6 +29,8 @@ ALLOWED_ROLES = {"performer", "distributor", "admin"}
 # -------------------------
 # Utilities
 # -------------------------
+
+
 def _parse_iso_dt(s: str):
     """Accepts 'YYYY-MM-DDTHH:MM' or 'YYYY-MM-DDTHH:MM:SS[Z]'."""
     try:
@@ -37,11 +39,13 @@ def _parse_iso_dt(s: str):
     except Exception:
         return None
 
+
 def _normalize_role(role_raw: str) -> str:
     role = (role_raw or "").strip().lower()
     if role == "venue":
         role = "distributor"
     return role
+
 
 def _current_user_id() -> int | None:
     try:
@@ -49,18 +53,24 @@ def _current_user_id() -> int | None:
     except Exception:
         return None
 
+
 def _current_role() -> str:
     claims = get_jwt() if get_jwt else {}
     return (claims.get("role") or "").lower()
 
+
 def _ensure_offer(offer_id: int) -> Offer | None:
     return db.session.get(Offer, offer_id)
 
+
 def _is_offer_owner(user_id: int, offer: Offer) -> bool:
     return offer and offer.distributorId == user_id
+
+
 def _role_from_claims() -> str:
     claims = get_jwt() or {}
     return (claims.get("role") or "").lower()
+
 
 def _can_view_or_send_messages(user_id: int, role: str, offer: Offer) -> bool:
     """
@@ -97,6 +107,8 @@ def _can_view_or_send_messages(user_id: int, role: str, offer: Offer) -> bool:
 # -------------------------
 # Auth
 # -------------------------
+
+
 @api.route("/login", methods=["POST"])
 def login():
     """
@@ -114,7 +126,8 @@ def login():
     if not user or not verify_password(user.password, password):
         return jsonify({"msg": "invalid credentials"}), 401
 
-    token = create_access_token(identity=str(user.userId), additional_claims={"role": user.role})
+    token = create_access_token(identity=str(
+        user.userId), additional_claims={"role": user.role})
     return jsonify({"user": user.serialize(), "token": token}), 200
 
 
@@ -132,6 +145,8 @@ def auth_me():
 # -------------------------
 # Users
 # -------------------------
+
+
 @api.route('/users', methods=['GET'])
 def get_users():
     rows = db.session.execute(db.select(User)).scalars().all()
@@ -157,7 +172,8 @@ def post_users():
 
     # Admin guard
     if role == "admin":
-        existing_admin = db.session.scalar(select(User).where(User.role == "admin"))
+        existing_admin = db.session.scalar(
+            select(User).where(User.role == "admin"))
         if existing_admin:
             provided_code = (data.get("adminCode") or "").strip()
             expected_code = os.getenv("ADMIN_SIGNUP_CODE", "")
@@ -197,7 +213,8 @@ def post_users():
             email=email,
             password=hash_password(data["password"]),
             role=role,
-            name=(data.get("venueName") or data.get("name") or role.capitalize()).strip(),
+            name=(data.get("venueName") or data.get(
+                "name") or role.capitalize()).strip(),
             city=(data.get("city") or "N/A").strip(),
             avatarUrl=data.get("avatarUrl"),
             capacity=capacity if role == "distributor" else None,
@@ -205,7 +222,8 @@ def post_users():
         db.session.add(user)
         db.session.commit()
 
-        token = create_access_token(identity=str(user.userId), additional_claims={"role": user.role})
+        token = create_access_token(identity=str(
+            user.userId), additional_claims={"role": user.role})
         return jsonify({"user": user.serialize(), "token": token}), 201
 
     except IntegrityError:
@@ -232,7 +250,8 @@ def update_user(user_id):
         return jsonify({"message": "user not found"}), 404
 
     data = request.get_json() or {}
-    allowed = ("email", "name", "city", "role", "avatarUrl", "capacity")
+    allowed = ("email", "name", "city", "role", "avatarUrl", "capacity",
+               "genre", "slogan", "bio", "musicians", "eventsFinalised")
     for key in allowed:
         if key in data:
             if key == "role":
@@ -250,11 +269,14 @@ def update_user(user_id):
 # -------------------------
 # ---- User-scoped offers ----
 # -------------------------
+
+
 @api.route('/users/<int:user_id>/offers/created', methods=['GET'])
 @jwt_required()
 def offers_created_by_user(user_id):
     rows = db.session.execute(
-        select(Offer).where(Offer.distributorId == user_id).order_by(Offer.createdAt.desc())
+        select(Offer).where(Offer.distributorId ==
+                            user_id).order_by(Offer.createdAt.desc())
     ).scalars().all()
     return jsonify([o.serialize() for o in rows]), 200
 
@@ -263,7 +285,8 @@ def offers_created_by_user(user_id):
 @jwt_required()
 def offers_user_applied(user_id):
     q = (
-        select(Offer, Match.status.label("match_status"), Match.matchId.label("match_id"))
+        select(Offer, Match.status.label("match_status"),
+               Match.matchId.label("match_id"))
         .join(Match, Match.offerId == Offer.offerId)
         .where(Match.performerId == user_id)
         .order_by(Offer.createdAt.desc())
@@ -281,6 +304,8 @@ def offers_user_applied(user_id):
 # -------------------------
 # Offers (public + protected)
 # -------------------------
+
+
 @api.route('/offers/latest', methods=['GET'])
 def offers_latest():
     """Public: latest N offers (default 10)"""
@@ -308,7 +333,8 @@ def get_offer(offer_id):
 @api.route('/offers', methods=['GET'])
 @jwt_required()
 def get_offers():
-    rows = db.session.execute(db.select(Offer).order_by(Offer.createdAt.desc())).scalars().all()
+    rows = db.session.execute(db.select(Offer).order_by(
+        Offer.createdAt.desc())).scalars().all()
     return jsonify([o.serialize() for o in rows]), 200
 
 
@@ -360,6 +386,7 @@ def create_offer():
 # Step 2 — Matching workflow
 # -------------------------
 
+
 @api.route('/offers/<int:offer_id>/apply', methods=['POST'])
 @jwt_required()
 def apply_offer(offer_id):
@@ -393,7 +420,8 @@ def apply_offer(offer_id):
 
     # Upsert match (unique performerId + offerId)
     existing = db.session.scalar(
-        select(Match).where(Match.performerId == user_id, Match.offerId == offer_id)
+        select(Match).where(Match.performerId ==
+                            user_id, Match.offerId == offer_id)
     )
     if existing:
         existing.rate = rate
@@ -435,7 +463,8 @@ def list_offer_matches(offer_id):
         return jsonify({"message": "forbidden"}), 403
 
     rows = db.session.execute(
-        select(Match).where(Match.offerId == offer_id).order_by(Match.createdAt.desc())
+        select(Match).where(Match.offerId == offer_id).order_by(
+            Match.createdAt.desc())
     ).scalars().all()
     return jsonify([m.serialize() for m in rows]), 200
 
@@ -466,7 +495,8 @@ def approve_chat(offer_id):
     approved = bool(data.get("approved", True))
 
     match = db.session.scalar(
-        select(Match).where(Match.offerId == offer_id, Match.performerId == performer_id)
+        select(Match).where(Match.offerId == offer_id,
+                            Match.performerId == performer_id)
     )
     if not match:
         return jsonify({"message": "match not found"}), 404
@@ -502,7 +532,8 @@ def accept_performer(offer_id):
 
     # accept one, reject others
     target = db.session.scalar(
-        select(Match).where(Match.offerId == offer_id, Match.performerId == performer_id)
+        select(Match).where(Match.offerId == offer_id,
+                            Match.performerId == performer_id)
     )
     if not target:
         return jsonify({"message": "match not found"}), 404
@@ -550,6 +581,8 @@ def conclude_offer(offer_id):
 # -------------------------
 # Messages (with chat gating)
 # -------------------------
+
+
 @api.route('/offers/<int:offer_id>/messages', methods=['GET'])
 @jwt_required()
 def get_messages_for_offer(offer_id):
@@ -567,7 +600,8 @@ def get_messages_for_offer(offer_id):
         return jsonify({"message": "chat not approved for this offer"}), 403
 
     rows = db.session.execute(
-        select(Message).where(Message.offerId == offer_id).order_by(Message.createdAt.asc())
+        select(Message).where(Message.offerId ==
+                              offer_id).order_by(Message.createdAt.asc())
     ).scalars().all()
     return jsonify([m.serialize() for m in rows]), 200
 
@@ -601,10 +635,13 @@ def post_message_for_offer(offer_id):
 # -------------------------
 # Reviews
 # -------------------------
+
+
 @api.route('/users/<int:user_id>/reviews', methods=['GET'])
 def get_reviews_for_user(user_id):
     rows = db.session.execute(
-        select(Review).where(Review.ratedId == user_id).order_by(Review.createdAt.desc())
+        select(Review).where(Review.ratedId == user_id).order_by(
+            Review.createdAt.desc())
     ).scalars().all()
     return jsonify([r.serialize() for r in rows]), 200
 
@@ -617,7 +654,8 @@ def create_review():
     if not all(k in data and data[k] is not None for k in required):
         return jsonify({"message": "raterId, ratedId and score are required"}), 400
 
-    rater_id, rated_id, score = int(data["raterId"]), int(data["ratedId"]), int(data["score"])
+    rater_id, rated_id, score = int(data["raterId"]), int(
+        data["ratedId"]), int(data["score"])
     if rater_id == rated_id:
         return jsonify({"message": "you cannot review yourself"}), 400
     if score < 1 or score > 5:
@@ -658,6 +696,8 @@ def delete_review(review_id):
 # -------------------------
 # Latest users
 # -------------------------
+
+
 @api.route('/users/latest', methods=['GET'])
 def users_latest():
     """

@@ -8,19 +8,30 @@ from datetime import datetime
 
 db = SQLAlchemy()
 
+
 class User(db.Model):
     __tablename__ = "user"
     userId: Mapped[int] = mapped_column(primary_key=True)
-    email: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    email: Mapped[str] = mapped_column(
+        String(120), unique=True, nullable=False)
     password: Mapped[str] = mapped_column(nullable=False)
-    role: Mapped[str] = mapped_column(String(), nullable=False)   # performer | distributor | admin
+    # performer | distributor | admin
+    role: Mapped[str] = mapped_column(String(), nullable=False)
     name: Mapped[str] = mapped_column(String(25), nullable=False)
     city: Mapped[str] = mapped_column(String(50), nullable=False)
     createdAt: Mapped[datetime] = mapped_column(default=datetime.now)
-    ratingAvg: Mapped[float] = mapped_column(Float(precision=2), nullable=True, default=0)
+    ratingAvg: Mapped[float] = mapped_column(
+        Float(precision=2), nullable=True, default=0)
     ratingCount: Mapped[int] = mapped_column(Integer, nullable=True, default=0)
     avatarUrl: Mapped[str] = mapped_column(String(255), nullable=True)
     capacity: Mapped[int] = mapped_column(Integer, nullable=True)
+    genre: Mapped[str] = mapped_column(String(80), nullable=True)
+    slogan: Mapped[str] = mapped_column(String(140), nullable=True)
+    bio: Mapped[str] = mapped_column(Text, nullable=True)
+    musicians: Mapped[dict] = mapped_column(
+        db.JSON, nullable=True)  # list[ {name, instrument} ]
+    eventsFinalised: Mapped[int] = mapped_column(
+        Integer, nullable=True, default=0)
 
     def serialize(self):
         return {
@@ -34,12 +45,20 @@ class User(db.Model):
             "ratingCount": self.ratingCount,
             "avatarUrl": self.avatarUrl,
             "capacity": self.capacity,
+            "genre": self.genre,
+            "slogan": self.slogan,
+            "bio": self.bio,
+            "musicians": self.musicians,
+            "eventsFinalised": self.eventsFinalised,
+
         }
+
 
 class Offer(db.Model):
     __tablename__ = "offers"
     offerId: Mapped[int] = mapped_column(primary_key=True)
-    distributorId: Mapped[int] = mapped_column(ForeignKey("user.userId"), nullable=False)
+    distributorId: Mapped[int] = mapped_column(
+        ForeignKey("user.userId"), nullable=False)
     title: Mapped[str] = mapped_column(String(140), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=True)
     city: Mapped[str] = mapped_column(String(120), nullable=True)
@@ -47,8 +66,10 @@ class Offer(db.Model):
     genre: Mapped[str] = mapped_column(String(80), nullable=True)
     budget: Mapped[float] = mapped_column(Numeric(10, 2), nullable=True)
     # open | closed | cancelled | concluded
-    status: Mapped[str] = mapped_column(String(20), default="open", nullable=False)
-    eventDate: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20), default="open", nullable=False)
+    eventDate: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now, nullable=False)
     capacity: Mapped[int] = mapped_column(Integer, nullable=True)
     createdAt: Mapped[datetime] = mapped_column(default=datetime.now)
 
@@ -74,24 +95,30 @@ class Offer(db.Model):
             "acceptedPerformerId": self.acceptedPerformerId,
         }
 
+
 class Match(db.Model):
     __tablename__ = "matches"
     __table_args__ = (
-        UniqueConstraint("performerId", "offerId", name="uq_match_performer_offer"),
+        UniqueConstraint("performerId", "offerId",
+                         name="uq_match_performer_offer"),
     )
 
     matchId: Mapped[int] = mapped_column(primary_key=True)
-    performerId: Mapped[int] = mapped_column(ForeignKey("user.userId"), nullable=False)
-    offerId: Mapped[int] = mapped_column(ForeignKey("offers.offerId"), nullable=False)
+    performerId: Mapped[int] = mapped_column(
+        ForeignKey("user.userId"), nullable=False)
+    offerId: Mapped[int] = mapped_column(
+        ForeignKey("offers.offerId"), nullable=False)
 
     # pending | accepted | rejected | withdrawn
-    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20), default="pending", nullable=False)
 
     # performer’s proposed rate — required by business logic (nullable in DB for easy migration)
     rate: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
 
     # venue must approve before chat is open
-    chatApproved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    chatApproved: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False)
 
     message: Mapped[str] = mapped_column(Text, nullable=True)
     createdAt: Mapped[datetime] = mapped_column(default=datetime.now)
@@ -108,12 +135,15 @@ class Match(db.Model):
             "createdAt": self.createdAt,
         }
 
+
 class Message(db.Model):
     __tablename__ = "messages"
 
     messageId: Mapped[int] = mapped_column(primary_key=True)
-    offerId: Mapped[int] = mapped_column(ForeignKey("offers.offerId"), nullable=False)
-    authorId: Mapped[int] = mapped_column(ForeignKey("user.userId"), nullable=False)
+    offerId: Mapped[int] = mapped_column(
+        ForeignKey("offers.offerId"), nullable=False)
+    authorId: Mapped[int] = mapped_column(
+        ForeignKey("user.userId"), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
     createdAt: Mapped[datetime] = mapped_column(default=datetime.now)
 
@@ -126,17 +156,23 @@ class Message(db.Model):
             "createdAt": self.createdAt,
         }
 
+
 class Review(db.Model):
     __tablename__ = "reviews"
     __table_args__ = (
-        CheckConstraint("score >= 1 AND score <= 5", name="ck_review_score_range"),
-        UniqueConstraint("raterId", "ratedId", "offerId", name="uq_review_pair_offer"),
+        CheckConstraint("score >= 1 AND score <= 5",
+                        name="ck_review_score_range"),
+        UniqueConstraint("raterId", "ratedId", "offerId",
+                         name="uq_review_pair_offer"),
     )
 
     reviewId: Mapped[int] = mapped_column(primary_key=True)
-    raterId: Mapped[int] = mapped_column(ForeignKey("user.userId"), nullable=False)
-    ratedId: Mapped[int] = mapped_column(ForeignKey("user.userId"), nullable=False)
-    offerId: Mapped[int] = mapped_column(ForeignKey("offers.offerId"), nullable=True)
+    raterId: Mapped[int] = mapped_column(
+        ForeignKey("user.userId"), nullable=False)
+    ratedId: Mapped[int] = mapped_column(
+        ForeignKey("user.userId"), nullable=False)
+    offerId: Mapped[int] = mapped_column(
+        ForeignKey("offers.offerId"), nullable=True)
     score: Mapped[int] = mapped_column(Integer, nullable=False)
     comment: Mapped[str] = mapped_column(Text, nullable=True)
     createdAt: Mapped[datetime] = mapped_column(default=datetime.now)
