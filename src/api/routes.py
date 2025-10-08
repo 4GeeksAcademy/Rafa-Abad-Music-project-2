@@ -9,9 +9,12 @@ from datetime import datetime
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 
 from api.models import db, User, Offer, Match, Message, Review
+from .utils import hash_password, verify_password
 
 api = Blueprint('api', __name__)
 CORS(api)
+
+ALLOWED_ROLES = {"performer", "distributor", "admin"}
 
 # -------------------------
 # Utilities
@@ -36,6 +39,26 @@ def role_required_fields(role):
     if role == "venue" or role == "distributor":
         return ["email", "password", "name", "city", "capacity", "venueName"]
     return ["email", "password"]  # fallback
+
+@api.route("/login", methods=["POST"])
+def login():
+    """
+    Signin: verifies credentials and returns { user, token }.
+    Body: { email, password }
+    """
+    if not request.is_json:
+        return jsonify({"msg": "content-type must be application/json"}), 415
+
+    data = request.get_json() or {}
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+
+    user = db.session.scalar(select(User).where(User.email == email))
+    if not user or not verify_password(user.password, password):
+        return jsonify({"msg": "invalid credentials"}), 401
+
+    token = create_access_token(identity={"userId": user.userId, "role": user.role})
+    return jsonify({"user": user.serialize(), "token": token}), 200
 # -------------------------
 # Users
 # -------------------------
@@ -44,36 +67,73 @@ def get_users():
     rows = db.session.execute(db.select(User)).scalars().all()
     return jsonify([u.serialize() for u in rows]), 200
 
-@api.route('/new-user', methods=['POST'])
+@api.route("/new-user", methods=["POST"])
 def post_users():
-    data = request.get_json() or {}
-    required = ("email", "password", "role", "name", "city")
-    if not all(k in data and data[k] for k in required):
-        return jsonify({"message": "missing parameters"}), 400
+    """
+    Signup: creates a user and returns { user, token } so the client is logged in immediately.
+    """
+    if not request.is_json:
+        return jsonify({"msg": "content-type must be application/json"}), 415
 
-    email = data["email"].strip().lower()
+    data = request.get_json() or {}
+    role = (data.get("role") or "").strip().lower()
+
+    if role not in ALLOWED_ROLES:
+        return jsonify({"msg": f"invalid role '{role}'"}), 400
+
+    # Role-based required fields
+    if role == "admin":
+        required = ["email", "password"]
+    elif role == "performer":
+        required = ["email", "password", "name", "city"]
+    elif role == "distributor":
+        required = ["email", "password", "name", "city", "capacity"]
+    else:
+        required = ["email", "password"]
+
+    missing = [k for k in required if not data.get(k)]
+    if missing:
+        return jsonify({"msg": f"missing parameters: {', '.join(missing)}"}), 400
+
+    email = (data["email"] or "").strip().lower()
+
+    # Validate capacity for distributors
+    capacity = None
+    if role == "distributor":
+        try:
+            capacity = int(data.get("capacity", 0))
+            if capacity < 0:
+                raise ValueError()
+        except Exception:
+            return jsonify({"msg": "capacity must be a non-negative integer"}), 400
+
+    # Uniqueness check
     if db.session.scalar(select(User).where(User.email == email)):
-        return jsonify({"message": "email already registered"}), 409
+        return jsonify({"msg": "email already registered"}), 409
 
     try:
         user = User(
             email=email,
-            password=data["password"],
-            role=data["role"].strip(),
-            name=data["name"].strip(),
-            city=data["city"].strip(),
+            password=hash_password(data["password"]),
+            role=role,
+            name=(data.get("name") or role.capitalize()).strip(),
+            city=(data.get("city") or "N/A").strip(),
             avatarUrl=data.get("avatarUrl"),
-            capacity=data.get("capacity")  # optional on signup
+            capacity=capacity if role == "distributor" else None,
         )
         db.session.add(user)
         db.session.commit()
-        return jsonify(user.serialize()), 201
+
+        # 🔐 Instant login: issue JWT
+        token = create_access_token(identity={"userId": user.userId, "role": user.role})
+        return jsonify({"user": user.serialize(), "token": token}), 201
+
     except IntegrityError:
         db.session.rollback()
-        return jsonify({"message": "email already registered"}), 409
+        return jsonify({"msg": "email already registered"}), 409
     except Exception as e:
         db.session.rollback()
-        return jsonify({"message": "unexpected error", "detail": str(e)}), 500
+        return jsonify({"msg": "unexpected error", "detail": str(e)}), 500
 
 @api.route('/users/<int:user_id>', methods=['GET'])
 def get_user(user_id):
@@ -84,6 +144,7 @@ def get_user(user_id):
 
 # Using PUT per your preference (course style)
 @api.route('/users/<int:user_id>', methods=['PUT'])
+@jwt_required()
 def update_user(user_id):
     user = db.session.get(User, user_id)
     if not user:
@@ -105,6 +166,7 @@ def update_user(user_id):
 #--------------------------
 # ---- User-scoped offers ----
 @api.route('/users/<int:user_id>/offers/created', methods=['GET'])
+@jwt_required()
 def offers_created_by_user(user_id):
     # Offers where this user is the distributor
     rows = db.session.execute(
@@ -114,6 +176,7 @@ def offers_created_by_user(user_id):
 
 
 @api.route('/users/<int:user_id>/offers/applied', methods=['GET'])
+@jwt_required()
 def offers_user_applied(user_id):
     """
     Offers this user (as performer) has interacted with via Matches.
@@ -141,11 +204,13 @@ def offers_user_applied(user_id):
 # Offers
 # -------------------------
 @api.route('/offers', methods=['GET'])
+@jwt_required()
 def get_offers():
     rows = db.session.execute(db.select(Offer).order_by(Offer.createdAt.desc())).scalars().all()
     return jsonify([o.serialize() for o in rows]), 200
 
 @api.route('/offers', methods=['POST'])
+@jwt_required()
 def create_offer():
     data = request.get_json() or {}
     required = ("distributorId", "title", "city", "venueName", "description", "eventDate")
@@ -186,6 +251,7 @@ def create_offer():
 # Messages (kept from before)
 # -------------------------
 @api.route('/offers/<int:offer_id>/messages', methods=['GET'])
+@jwt_required()
 def get_messages_for_offer(offer_id):
     rows = db.session.execute(
         select(Message).where(Message.offerId == offer_id).order_by(Message.createdAt.asc())
@@ -221,6 +287,7 @@ def get_reviews_for_user(user_id):
     return jsonify([r.serialize() for r in rows]), 200
 
 @api.route('/reviews', methods=['POST'])
+@jwt_required()
 def create_review():
     data = request.get_json() or {}
     required = ("raterId", "ratedId", "score")
@@ -255,6 +322,7 @@ def create_review():
         return jsonify({"message": "review already exists for this pair/offer"}), 409
 
 @api.route('/reviews/<int:review_id>', methods=['DELETE'])
+@jwt_required()
 def delete_review(review_id):
     review = db.session.get(Review, review_id)
     if not review:
