@@ -29,10 +29,11 @@ export const Login = () => {
     const data = await res.json();
     if (!res.ok) throw new Error(data?.msg || "Login failed");
 
-    if (data.token) localStorage.setItem("token", data.token);
-    if (data.user) dispatch({ type: "set_user", payload: data.user });
+    localStorage.setItem("token", data.token);
+    dispatch({ type: "set_user", payload: data.user });
     navigate("/profile");
   };
+
 
   const handleRegister = async () => {
     // minimal client-side validation

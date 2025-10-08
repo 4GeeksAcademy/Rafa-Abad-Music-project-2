@@ -1,15 +1,18 @@
 import { Outlet } from "react-router-dom";
 import { Navbar } from "../components/Navbar.jsx";
 import { Footer } from "../components/Footer.jsx";
+import FloatingChat from "../components/FloatingChat.jsx";
 
-const Layout = () => (
-  <div className="d-flex flex-column min-vh-100">
-    <Navbar />
-    <div className="flex-fill container my-4">
-      <Outlet />
-    </div>
-    <Footer />
-  </div>
-);
 
-export default Layout;   // 👈 default export
+export const Layout = () => {
+  return (
+    <>
+      <Navbar />
+      <main className="flex-grow-1">
+        <Outlet />
+      </main>
+      <Footer />
+      <FloatingChat />
+    </>
+  );
+}

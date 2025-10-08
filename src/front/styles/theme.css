@@ -1,0 +1,281 @@
+/* ===============================
+   Rafa Abad Music — Theme (Dark Navy + Eggshell)
+   =============================== */
+
+:root {
+  /* Brand colors */
+  --ram-navy-900:#0B1D3A;
+  --ram-navy-800:#112A4C;
+  --ram-navy-700:#183B6B;
+  --ram-eggshell:#FAF6EE;
+  --ram-accent:#2E8BC0;      /* primary buttons/links */
+  --ram-accent-2:#73BDE3;    /* hovers / secondary accents */
+  --ram-gold:#D4A017;        /* highlights / badges */
+  --ram-muted:#9BA8BC;       /* muted UI text */
+  --ram-danger:#E35D6A;
+
+  /* Elevated surfaces (glass) */
+  --ram-surface: rgba(255,255,255,0.06);
+  --ram-surface-strong: rgba(255,255,255,0.10);
+  --ram-border: rgba(255,255,255,0.18);
+  --ram-shadow: 0 10px 30px rgba(0,0,0,0.35);
+
+  /* Bootstrap variable overrides */
+  --bs-body-bg: var(--ram-navy-900);
+  --bs-body-color: #ffffff;              /* ⬅ Default text: white */
+  --bs-primary: var(--ram-accent);
+  --bs-secondary: #2a3855;
+  --bs-success: #2fa37e;
+  --bs-info: var(--ram-accent-2);
+  --bs-warning: var(--ram-gold);
+  --bs-danger: var(--ram-danger);
+  --bs-dark: #0c1425;
+  --bs-light: var(--ram-eggshell);
+
+  --bs-border-color: var(--ram-border);
+  --bs-link-color: var(--ram-accent);
+  --bs-link-hover-color: var(--ram-accent-2);
+}
+
+/* ===== Base ===== */
+html, body {
+  height: 100%;
+  background: linear-gradient(160deg, var(--ram-navy-900), var(--ram-navy-800) 60%, var(--ram-navy-700));
+  color: #fff; /* default text */
+}
+
+a { color: var(--ram-accent); text-decoration: none; }
+a:hover { color: var(--ram-accent-2); text-decoration: underline; }
+
+.text-muted { color: rgba(255,255,255,0.68) !important; }
+small, .small { color: rgba(255,255,255,0.78); }
+
+/* ===== Nav / Footer (glass) ===== */
+.navbar,
+.footer,
+.card,
+.modal-content,
+.dropdown-menu {
+  background: var(--ram-surface) !important;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--ram-border) !important;
+  box-shadow: var(--ram-shadow);
+}
+
+.navbar .nav-link,
+.navbar-brand {
+  color: #fff !important;
+}
+.navbar .nav-link:hover { color: var(--ram-accent-2) !important; }
+
+/* Footer */
+.footer {
+  color: rgba(255,255,255,0.85);
+}
+
+/* ===== Cards / Panels ===== */
+.card {
+  border-radius: 14px;
+}
+.card-header {
+  border-bottom: 1px solid var(--ram-border) !important;
+  background: transparent !important;
+  color: #fff;
+}
+.card-body { color: #fff; }
+
+/* OfferCard emphasis */
+.card.offer {
+  border-left: 3px solid var(--ram-accent);
+}
+.card.offer:hover {
+  box-shadow: 0 14px 40px rgba(0,0,0,0.45);
+  transform: translateY(-1px);
+  transition: all .2s ease;
+}
+
+/* ===== Buttons ===== */
+.btn-primary {
+  background: linear-gradient(180deg, var(--ram-accent), #1f6f97);
+  border-color: transparent;
+  color: #fff;
+}
+.btn-primary:hover {
+  background: linear-gradient(180deg, var(--ram-accent-2), var(--ram-accent));
+}
+
+.btn-outline-secondary {
+  color: #fff;
+  border-color: rgba(255,255,255,0.35);
+}
+.btn-outline-secondary:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.55);
+  color: #fff;
+}
+
+.btn-success { background-color: #2fa37e; border-color: #2fa37e; }
+.btn-success:hover { background-color: #27906f; border-color: #27906f; }
+
+/* Floating action buttons */
+.btn-fab {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1050;
+  border-radius: 999px;
+  padding: .75rem 1rem;
+  box-shadow: var(--ram-shadow);
+}
+
+/* ===== Forms ===== */
+.form-control, .form-select, .input-group-text {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--ram-border);
+  color: #fff;
+}
+.form-control:focus, .form-select:focus {
+  background: rgba(255,255,255,0.06);
+  color: #fff;
+  border-color: var(--ram-accent);
+  box-shadow: 0 0 0 .2rem rgba(46,139,192,0.25);
+}
+.form-control::placeholder {
+  color: rgba(255,255,255,0.55) !important;
+}
+
+/* Floating labels (if used) */
+.form-floating > label { color: rgba(255,255,255,0.75); }
+
+/* Input group borders */
+.input-group .form-control,
+.input-group .input-group-text {
+  border-color: var(--ram-border);
+}
+
+/* ===== Modals ===== */
+.modal-content {
+  border-radius: 16px;
+}
+.modal-header, .modal-footer {
+  border-color: var(--ram-border);
+}
+.modal-title { color: #fff; }
+.modal-backdrop.show { opacity: .6; }
+
+/* ===== Alerts (light background with dark text for legibility) ===== */
+.alert {
+  color: #111 !important;
+  background-color: #f8f9fa !important;
+  border: 1px solid rgba(0,0,0,0.12) !important;
+}
+.alert-danger { background-color: #f8d7da !important; color: #58151c !important; }
+.alert-success { background-color: #d1e7dd !important; color: #0f5132 !important; }
+.alert-warning { background-color: #fff3cd !important; color: #664d03 !important; }
+.alert-info { background-color: #cff4fc !important; color: #055160 !important; }
+
+/* ===== Badges / Pills ===== */
+.badge.bg-secondary {
+  background: rgba(255,255,255,0.15) !important;
+  color: #fff !important;
+  border: 1px solid var(--ram-border);
+}
+.badge.bg-success { background: #2fa37e !important; }
+.badge.bg-warning { background: var(--ram-gold) !important; color: #1f1600 !important; }
+
+/* ===== Tables (for matches list) ===== */
+.table {
+  color: #fff;
+  --bs-table-bg: transparent;
+  --bs-table-border-color: var(--ram-border);
+}
+.table thead th {
+  color: #fff;
+  border-bottom-color: var(--ram-border);
+}
+.table tbody tr {
+  border-color: var(--ram-border);
+}
+.table-hover tbody tr:hover {
+  background: rgba(255,255,255,0.06);
+}
+
+/* ===== Floating Chat ===== */
+.floating-chat {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: 380px;
+  max-height: 80vh;
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
+  background: var(--ram-surface);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--ram-border);
+  box-shadow: var(--ram-shadow);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.floating-chat .header {
+  padding: .6rem .9rem;
+  border-bottom: 1px solid var(--ram-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #fff;
+}
+.floating-chat .body {
+  padding: .6rem;
+  overflow-y: auto;
+}
+.floating-chat .footer {
+  border-top: 1px solid var(--ram-border);
+  padding: .6rem;
+  background: rgba(255,255,255,0.03);
+}
+
+/* ===== Utility spacing / containers ===== */
+main {
+  min-height: calc(100vh - 140px); /* adjust for navbar/footer heights */
+}
+
+/* Section headers */
+.section-title {
+  color: #fff;
+  margin-bottom: .75rem;
+}
+
+/* ===== Responsive tweaks ===== */
+@media (max-width: 576px) {
+  .floating-chat {
+    right: 10px;
+    left: 10px;
+    width: auto;
+    bottom: 10px;
+  }
+  .btn-fab { right: 10px; bottom: 10px; }
+}
+
+/* ===== Optional: subtle separators ===== */
+.hr-soft {
+  border: none;
+  border-top: 1px solid var(--ram-border);
+  margin: 1.25rem 0;
+}
+
+/* ===== Optional: hero section (home top banner) ===== */
+.hero {
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  border: 1px solid var(--ram-border);
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: var(--ram-shadow);
+  color: #fff;
+}
+.hero .lead { color: rgba(255,255,255,0.85); }
+body {
+  padding-top: 70px; /* adjust if your navbar is taller */
+}
