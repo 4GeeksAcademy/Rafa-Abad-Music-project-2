@@ -1,186 +1,219 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import useGlobalReducer from "../hooks/useGlobalReducer";
 
-const API = import.meta.env.VITE_BACKEND_URL;
+const API = import.meta.env.VITE_BACKEND_URL; // e.g. http://localhost:3001
 
-export const Login = () => {
+function Login() {
   const { dispatch } = useGlobalReducer();
   const navigate = useNavigate();
 
-  const [mode, setMode] = useState("login"); // "login" | "register"
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [role, setRole] = useState("performer"); // performer | venue
-  const [name, setName] = useState("");
-  const [city, setCity] = useState("");
-  const [capacity, setCapacity] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState("");
-  const [error, setError] = useState("");
+  // "login" | "register"
+  const [mode, setMode] = useState("login");
 
-  const resetErrors = () => setError("");
+  // form state
+  const [form, setForm] = useState({
+    email: "",
+    password: "",
+    role: "performer", // performer | distributor | admin (for register)
+    name: "",
+    city: "",
+    avatarUrl: "",
+    capacity: "", // venues only; keep as string
+  });
 
-  const handleLogin = async () => {
-    const res = await fetch(`${API}/api/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data?.msg || "Login failed");
+  const [status, setStatus] = useState(null); // { type: "error"|"success", msg: string }
+  const [loading, setLoading] = useState(false);
 
-    localStorage.setItem("token", data.token);
-    dispatch({ type: "set_user", payload: data.user });
-    navigate("/profile");
+  const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const switchMode = () => {
+    setStatus(null);
+    setMode((m) => (m === "login" ? "register" : "login"));
   };
 
-
-  const handleRegister = async () => {
-    // minimal client-side validation
-    if (!email || !password) throw new Error("Email and password are required");
-    if (role === "performer" && (!name || !city)) {
-      throw new Error("Name and city are required for performers");
-    }
-    if (role === "venue" && (!name || !city)) {
-      throw new Error("Venue name and city are required");
-    }
-
-    const payload = {
-      email,
-      password,
-      role,              // "performer" or "venue" -> backend aliases "venue" to "distributor"
-      name,              // for venue, this is the venue name (label changes below)
-      city,
-      avatarUrl: avatarUrl || undefined,
-      capacity: role === "venue" && capacity !== "" ? Number(capacity) : undefined,
-    };
-
-    const res = await fetch(`${API}/api/new-user`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data?.msg || "Registration failed");
-
-    if (data.token) localStorage.setItem("token", data.token);
-    if (data.user) dispatch({ type: "set_user", payload: data.user });
-    navigate("/profile");
-  };
-
-  const onSubmit = async (e) => {
+  async function handleLogin(e) {
     e.preventDefault();
-    resetErrors();
+    setLoading(true);
+    setStatus(null);
+
     try {
-      if (mode === "login") await handleLogin();
-      else await handleRegister();
+      const res = await fetch(`${API}/api/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email.trim(), password: form.password }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "Login failed");
+
+      // persist token + user immediately to prevent navbar flicker on refresh
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      dispatch({ type: "set_user", payload: data.user });
+
+      navigate("/profile");
     } catch (err) {
-      setError(err.message || "Something went wrong");
+      setStatus({ type: "error", msg: err.message || "Login error" });
+    } finally {
+      setLoading(false);
     }
-  };
+  }
+
+  async function handleRegister(e) {
+    e.preventDefault();
+    setLoading(true);
+    setStatus(null);
+
+    try {
+      // prepare payload; cast capacity to int if present
+      const payload = {
+        email: form.email.trim(),
+        password: form.password,
+        role: form.role,
+        name: form.name.trim(),
+        city: form.city.trim(),
+        avatarUrl: form.avatarUrl.trim(),
+      };
+
+      if (form.role === "distributor" || form.role === "venue") {
+        const cap = parseInt(form.capacity, 10);
+        if (!Number.isNaN(cap)) payload.capacity = cap;
+      }
+
+      const res = await fetch(`${API}/api/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "Registration failed");
+
+      // persist on success
+      if (data.token) localStorage.setItem("token", data.token);
+      if (data.user) {
+        localStorage.setItem("user", JSON.stringify(data.user));
+        dispatch({ type: "set_user", payload: data.user });
+      }
+
+      navigate("/profile");
+    } catch (err) {
+      setStatus({ type: "error", msg: err.message || "Registration error" });
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <div className="container" style={{ maxWidth: 520 }}>
-      <div className="d-flex justify-content-center mt-4 mb-3 gap-2">
-        <button
-          type="button"
-          className={`btn ${mode === "login" ? "btn-primary" : "btn-outline-primary"}`}
-          onClick={() => setMode("login")}
-        >
-          Login
-        </button>
-        <button
-          type="button"
-          className={`btn ${mode === "register" ? "btn-primary" : "btn-outline-primary"}`}
-          onClick={() => setMode("register")}
-        >
-          Register
-        </button>
-      </div>
+    <div className="container py-5" style={{ maxWidth: 560 }}>
+      <div className="card">
+        <div className="card-body">
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <h4 className="mb-0">{mode === "login" ? "Log in" : "Create an account"}</h4>
+            <button className="btn btn-outline-secondary btn-sm" onClick={switchMode} type="button">
+              {mode === "login" ? "Need an account?" : "Have an account?"}
+            </button>
+          </div>
 
-      <h1 className="h4 text-center mb-3">{mode === "login" ? "Login" : "Create your account"}</h1>
+          {status?.type === "error" && (
+            <div className="alert alert-danger py-2">{status.msg}</div>
+          )}
 
-      <form className="d-grid gap-2" onSubmit={onSubmit}>
-        {/* Common fields */}
-        <input
-          className="form-control"
-          placeholder="email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value.trim())}
-        />
-        <input
-          className="form-control"
-          placeholder="password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-
-        {mode === "register" && (
-          <>
-            {/* Role */}
-            <div className="form-floating">
-              <select
-                id="role"
-                className="form-select"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-              >
-                <option value="performer">Performer</option>
-                <option value="venue">Venue</option>
-              </select>
-              <label htmlFor="role">Account type</label>
+          <form onSubmit={mode === "login" ? handleLogin : handleRegister} className="vstack gap-3">
+            <div>
+              <label className="form-label">Email</label>
+              <input
+                name="email"
+                type="email"
+                className="form-control"
+                value={form.email}
+                onChange={onChange}
+                required
+              />
             </div>
 
-            {/* Name (label changes with role) */}
-            <input
-              className="form-control"
-              placeholder={role === "venue" ? "venue name" : "name"}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-
-            {/* City */}
-            <input
-              className="form-control"
-              placeholder="city"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-            />
-
-            {/* Capacity (only for venue) */}
-            {role === "venue" && (
+            <div>
+              <label className="form-label">Password</label>
               <input
+                name="password"
+                type="password"
                 className="form-control"
-                placeholder="capacity (e.g. 150)"
-                type="number"
-                min={0}
-                value={capacity}
-                onChange={(e) => setCapacity(e.target.value)}
+                value={form.password}
+                onChange={onChange}
+                required
               />
+            </div>
+
+            {mode === "register" && (
+              <>
+                <div>
+                  <label className="form-label">Role</label>
+                  <select name="role" className="form-select" value={form.role} onChange={onChange}>
+                    <option value="performer">Performer</option>
+                    <option value="distributor">Venue / Distributor</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="form-label">Name</label>
+                  <input
+                    name="name"
+                    className="form-control"
+                    value={form.name}
+                    onChange={onChange}
+                    placeholder="Stage or venue name"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">City</label>
+                  <input
+                    name="city"
+                    className="form-control"
+                    value={form.city}
+                    onChange={onChange}
+                    placeholder="e.g. Valencia"
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">Avatar URL (optional)</label>
+                  <input
+                    name="avatarUrl"
+                    className="form-control"
+                    value={form.avatarUrl}
+                    onChange={onChange}
+                    placeholder="https://…"
+                  />
+                </div>
+
+                {(form.role === "distributor" || form.role === "venue") && (
+                  <div>
+                    <label className="form-label">Capacity (optional)</label>
+                    <input
+                      name="capacity"
+                      className="form-control"
+                      value={form.capacity}
+                      onChange={onChange}
+                      placeholder="e.g. 300"
+                    />
+                  </div>
+                )}
+              </>
             )}
 
-            {/* Optional avatar */}
-            <input
-              className="form-control"
-              placeholder="avatar URL (optional)"
-              value={avatarUrl}
-              onChange={(e) => setAvatarUrl(e.target.value)}
-            />
-          </>
-        )}
-
-        <button className="btn btn-primary">
-          {mode === "login" ? "Login" : "Create account"}
-        </button>
-
-        {error && <div className="text-danger small mt-1">{error}</div>}
-      </form>
-
-      <div className="text-center mt-3">
-        <Link to="/">Back to Home</Link>
+            <button className="btn btn-primary" type="submit" disabled={loading}>
+              {loading ? "Please wait…" : mode === "login" ? "Log in" : "Create account"}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
-};
+}
+
+export default Login;
+export { Login }; // also export as a named export to match routes importing { Login }

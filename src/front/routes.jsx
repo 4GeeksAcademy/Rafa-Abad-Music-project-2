@@ -17,6 +17,8 @@ export default function App() {
           <Route path="/offers" element={<Offers />} />
           <Route path="/offers/:offerId" element={<OfferDetails />} />
           <Route path="*" element={<div>Not found</div>} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/profile/:id" element={<Profile />} />
         </Route>
       </Routes>
     </BrowserRouter>

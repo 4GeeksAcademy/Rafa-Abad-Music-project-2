@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import useGlobalReducer from "../hooks/useGlobalReducer";
 import ReviewCard from "../components/ReviewCard.jsx";
 import OfferCard from "../components/OfferCard.jsx";
@@ -9,15 +9,24 @@ function initials(text = "") {
 }
 
 export const Profile = () => {
+  const { id: routeId } = useParams(); // allow /profile/:id
   const backend = import.meta.env.VITE_BACKEND_URL;
   const { store, dispatch } = useGlobalReducer();
   const navigate = useNavigate();
-  const token = localStorage.getItem("token");
-  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
+  // ---- Fresh auth helpers (prevents stale token -> 401) ----
+  const getToken = () => localStorage.getItem("token") || "";
+  const getAuthHeaders = () => {
+    const t = getToken();
+    return t ? { Authorization: `Bearer ${t}` } : {};
+  };
 
   // Logged-in user
-  const userId = store.currentUser?.userId ?? null;
-  const getToken = () => localStorage.getItem("token") || "";
+  const myId = store.currentUser?.userId ?? null;
+  const viewingOther = !!routeId && String(routeId) !== String(myId);
+  const targetUserId = viewingOther ? routeId : myId;
+  const canEdit = !viewingOther || store.currentUser?.role === "admin"; // self or admin
+  const canDelete = canEdit;
 
   // -------- UI (modals) --------
   const [showEdit, setShowEdit] = useState(false);
@@ -54,38 +63,60 @@ export const Profile = () => {
   // -------- Reviews & city-offers for performers --------
   const [reviews, setReviews] = useState([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
-  const [cityOffers, setCityOffers] = useState([]); // offers in the user's city (for performers)
+  const [cityOffers, setCityOffers] = useState([]);
   const [loadingCityOffers, setLoadingCityOffers] = useState(false);
 
-  // Load user
+  // ----- Load either me or a specific user -----
   useEffect(() => {
     const load = async () => {
       try {
         setLoadingUser(true); setErrUser("");
-        const t = getToken();
-        if (!t) { throw new Error("Not logged in"); }
-        const res = await fetch(`${backend}/api/auth/me`, {
-          headers: { "Authorization": `Bearer ${t}` }
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data?.message || "Error loading user");
 
-        dispatch({ type: "set_user", payload: data });
-        setForm({
-          email: data.email || "",
-          name: data.name || "",
-          city: data.city || "",
-          role: data.role || "performer",
-          avatarUrl: data.avatarUrl || "",
-          capacity: data.capacity ?? ""
-        });
+        if (viewingOther) {
+          // View another user's public profile
+          const res = await fetch(`${backend}/api/users/${targetUserId}`, {
+            headers: getAuthHeaders(),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.message || "User not found");
 
-        // pre-fill offer defaults from user
-        setOffer(o => ({
-          ...o,
-          city: data.city || "",
-          capacity: data.capacity ?? ""
-        }));
+          // Do NOT persist someone else's profile into current user
+          setForm({
+            email: data.email || "",
+            name: data.name || "",
+            city: data.city || "",
+            role: data.role || "performer",
+            avatarUrl: data.avatarUrl || "",
+            capacity: data.capacity ?? ""
+          });
+
+          setOffer(o => ({ ...o, city: data.city || "", capacity: data.capacity ?? "" }));
+        } else {
+          // Own profile
+          const t = getToken();
+          if (!t) throw new Error("Not logged in");
+
+          const res = await fetch(`${backend}/api/auth/me`, {
+            headers: getAuthHeaders(),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.message || "Error loading user");
+
+          // Update app state + persist me (prevents navbar flicker after refresh)
+          dispatch({ type: "set_user", payload: data });
+          localStorage.setItem("user", JSON.stringify(data));
+
+          setForm({
+            email: data.email || "",
+            name: data.name || "",
+            city: data.city || "",
+            role: data.role || "performer",
+            avatarUrl: data.avatarUrl || "",
+            capacity: data.capacity ?? ""
+          });
+
+          setOffer(o => ({ ...o, city: data.city || "", capacity: data.capacity ?? "" }));
+        }
       } catch (e) {
         setErrUser(e.message);
       } finally {
@@ -93,14 +124,15 @@ export const Profile = () => {
       }
     };
     load();
-  }, [backend, userId, dispatch]);
+  }, [backend, viewingOther, targetUserId, dispatch]);
 
-  // Load reviews
+  // ----- Load reviews for the viewed user (me or other) -----
   useEffect(() => {
     const loadReviews = async () => {
+      if (!targetUserId) return;
       try {
         setLoadingReviews(true);
-        const res = await fetch(`${backend}/api/users/${userId}/reviews`);
+        const res = await fetch(`${backend}/api/users/${targetUserId}/reviews`);
         const data = await res.json();
         if (res.ok) setReviews(Array.isArray(data) ? data : []);
       } finally {
@@ -108,9 +140,9 @@ export const Profile = () => {
       }
     };
     loadReviews();
-  }, [backend, userId]);
+  }, [backend, targetUserId]);
 
-  // If performer, show offers in their city (client-side filtered)
+  // ----- If performer, show offers in their city -----
   useEffect(() => {
     const fetchCityOffers = async () => {
       if (form.role !== "performer" || !form.city) {
@@ -118,7 +150,7 @@ export const Profile = () => {
       }
       try {
         setLoadingCityOffers(true);
-        const res = await fetch(`${backend}/api/offers`, { headers: authHeaders });
+        const res = await fetch(`${backend}/api/offers`, { headers: getAuthHeaders() });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.message || data?.msg || "Error loading offers");
         const inCity = (Array.isArray(data) ? data : []).filter(o => {
@@ -127,8 +159,7 @@ export const Profile = () => {
           const isOpen = (o.status || "").toLowerCase() === "open";
           return sameCity && isOpen;
         });
-
-        setCityOffers(inCity.slice(0, 6)); // show a few
+        setCityOffers(inCity.slice(0, 6));
       } catch {
         setCityOffers([]);
       } finally {
@@ -137,22 +168,21 @@ export const Profile = () => {
     };
     fetchCityOffers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backend, form.role, form.city, token]);
+  }, [backend, form.role, form.city]);
 
   const onChange = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
-  // PUT user
+  // ----- PUT user (self, or admin editing someone else) -----
   const saveUser = async (e) => {
     e.preventDefault();
+    if (!canEdit) return;
+
     try {
       setSavingUser(true); setErrUser("");
-      if (!token) throw new Error("You must be logged in.");
-      const res = await fetch(`${backend}/api/users/${userId}`, {
+
+      const res = await fetch(`${backend}/api/users/${targetUserId}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders
-        },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({
           email: form.email,
           name: form.name,
@@ -165,7 +195,12 @@ export const Profile = () => {
       const updated = await res.json();
       if (!res.ok) throw new Error(updated?.message || updated?.msg || "Error updating profile");
 
-      dispatch({ type: "set_user", payload: updated });
+      // If I edited my own profile, sync store + localStorage
+      if (!viewingOther) {
+        dispatch({ type: "set_user", payload: updated });
+        localStorage.setItem("user", JSON.stringify(updated));
+      }
+
       setShowEdit(false);
       alert("Profile saved!");
     } catch (e) {
@@ -175,15 +210,14 @@ export const Profile = () => {
     }
   };
 
-  // POST offer
+  // ----- POST offer (own venue flow) -----
   const createOffer = async (e) => {
     e.preventDefault();
     try {
       setSavingOffer(true); setErrOffer("");
-      if (!token) throw new Error("You must be logged in.");
 
       const payload = {
-        distributorId: userId, // backend will still require JWT; this is for record/validation
+        distributorId: myId,
         title: offer.title,
         description: offer.description,
         city: offer.city,
@@ -196,10 +230,7 @@ export const Profile = () => {
 
       const res = await fetch(`${backend}/api/offers`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders
-        },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(payload)
       });
       const data = await res.json();
@@ -215,9 +246,41 @@ export const Profile = () => {
     }
   };
 
-  if (loadingUser) {
-    return <div className="container py-5 text-center">Loading profile…</div>;
-  }
+  // ----- DELETE user (self or admin) -----
+  const onDelete = async () => {
+    if (!canDelete) return;
+    if (!window.confirm("Are you sure you want to delete this account? This cannot be undone.")) return;
+
+    try {
+      const res = await fetch(`${backend}/api/users/${targetUserId}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+
+      let msg = "Failed to delete user.";
+      try {
+        const data = await res.json();
+        if (!res.ok) msg = data?.message || data?.msg || msg;
+        else {
+          // success
+          alert("Account deleted.");
+          if (!viewingOther) {
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
+            dispatch({ type: "set_user", payload: null });
+          }
+          return navigate("/");
+        }
+      } catch {
+        if (!res.ok) alert(msg);
+      }
+    } catch (e) {
+      alert("Error deleting user: " + e.message);
+    }
+  };
+
+  if (loadingUser) return <div className="container py-5 text-center">Loading profile…</div>;
+  if (errUser) return <div className="container py-5 text-center text-danger">{errUser}</div>;
 
   return (
     <div className="container py-4" style={{ maxWidth: 980 }}>
@@ -250,36 +313,48 @@ export const Profile = () => {
               </div>
             </div>
           </div>
-          <div className="text-end">
-            <div>⭐ {store.currentUser?.ratingAvg ?? 0} <small className="text-muted">/ 5</small></div>
-            <div className="text-muted small">{store.currentUser?.ratingCount ?? 0} reviews</div>
-          </div>
+
+          {/* keep your own rating UI only on self */}
+          {!viewingOther && (
+            <div className="text-end">
+              <div>⭐ {store.currentUser?.ratingAvg ?? 0} <small className="text-muted">/ 5</small></div>
+              <div className="text-muted small">{store.currentUser?.ratingCount ?? 0} reviews</div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Actions */}
-      <div className="mb-3 d-flex gap-2">
-        <button className="btn btn-outline-primary" onClick={() => setShowEdit(true)}>
-          Edit profile
-        </button>
+      <div className="mb-3 d-flex gap-2 flex-wrap">
+        {canEdit && (
+          <button className="btn btn-outline-primary" onClick={() => setShowEdit(true)}>
+            Edit profile
+          </button>
+        )}
 
-        {form.role === "distributor" && (
+        {!viewingOther && form.role === "distributor" && (
           <button className="btn btn-primary" onClick={() => setShowOfferForm(true)}>
             Create Offer
           </button>
         )}
 
-        <Link to="/offers" className="btn btn-outline-secondary">Your Offers</Link>
+        {!viewingOther && <Link to="/offers" className="btn btn-outline-secondary">Your Offers</Link>}
+
+        {canDelete && (
+          <button className="btn btn-danger ms-auto" onClick={onDelete}>
+            Delete account
+          </button>
+        )}
       </div>
 
-      {/* Performer: offers from your city */}
+      {/* Performer: offers in this user's city */}
       {form.role === "performer" && (
         <div className="card mb-3">
-          <div className="card-header">Offers in {form.city || "your city"}</div>
+          <div className="card-header">Offers in {form.city || "their city"}</div>
           <div className="card-body">
             {loadingCityOffers && <div>Loading…</div>}
             {!loadingCityOffers && cityOffers.length === 0 && (
-              <div className="text-muted">No offers found for your city yet.</div>
+              <div className="text-muted">No offers found for this city yet.</div>
             )}
             {!loadingCityOffers && cityOffers.length > 0 && (
               <div className="row g-3">
@@ -306,7 +381,7 @@ export const Profile = () => {
       )}
 
       {/* Last created offer preview */}
-      {lastCreatedOffer && (
+      {lastCreatedOffer && !viewingOther && (
         <div className="card mb-3">
           <div className="card-header">Last created offer</div>
           <div className="card-body">
@@ -351,7 +426,7 @@ export const Profile = () => {
         </div>
       </div>
 
-      {/* --------- Edit Profile Modal --------- */}
+      {/* ---- Edit Profile Modal (self/admin) ---- */}
       <div className={`modal ${showEdit ? "show d-block" : ""}`} tabIndex="-1" role="dialog" aria-hidden={!showEdit}>
         <div className="modal-dialog modal-lg" role="document">
           <div className="modal-content">
@@ -398,7 +473,7 @@ export const Profile = () => {
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-outline-secondary" onClick={() => setShowEdit(false)}>Cancel</button>
-                <button className="btn btn-success" disabled={savingUser}>
+                <button className="btn btn.success" disabled={savingUser}>
                   {savingUser ? "Saving…" : "Save changes"}
                 </button>
               </div>
@@ -408,7 +483,7 @@ export const Profile = () => {
       </div>
       {showEdit && <div className="modal-backdrop fade show" onClick={() => setShowEdit(false)} />}
 
-      {/* --------- Create Offer Modal --------- */}
+      {/* ---- Create Offer Modal (self only) ---- */}
       <div className={`modal ${showOfferForm ? "show d-block" : ""}`} tabIndex="-1" role="dialog" aria-hidden={!showOfferForm}>
         <div className="modal-dialog modal-lg" role="document">
           <div className="modal-content">

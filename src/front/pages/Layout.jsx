@@ -4,6 +4,7 @@ import { Footer } from "../components/Footer.jsx";
 import FloatingChat from "../components/FloatingChat.jsx";
 
 
+
 export const Layout = () => {
   return (
     <>
