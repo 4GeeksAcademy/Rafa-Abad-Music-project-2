@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import useGlobalReducer from "../hooks/useGlobalReducer";
 
-const API = import.meta.env.VITE_BACKEND_URL; // e.g. http://localhost:3001
+const API = import.meta.env.VITE_BACKEND_URL;
 
 function Login() {
   const { dispatch } = useGlobalReducer();

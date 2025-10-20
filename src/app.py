@@ -38,7 +38,7 @@ Migrate(app, db)
 # CORS (app-wide)
 CORS(
     app,
-    resources={r"/api/*": {"origins": ["http://localhost:3000", "http://127.0.0.1:3000"]}},
+    resources={r"/api/*": {"origins": ["https://music-match-tt10.onrender.com", "https://music-match-backend-1949.onrender.com"]}},
     supports_credentials=True,               # ok to keep or set False if not needed
     allow_headers=["Content-Type", "Authorization"],
     expose_headers=["Content-Type", "Authorization"],
