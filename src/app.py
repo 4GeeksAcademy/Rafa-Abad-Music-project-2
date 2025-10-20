@@ -35,6 +35,11 @@ jwt = JWTManager(app)
 db.init_app(app)
 Migrate(app, db)
 
+#initiate db
+with app.app_context():
+    if os.getenv("AUTO_CREATE_DB", "0") == "1":
+        from src.models import db
+        db.create_all()
 # CORS (app-wide)
 allowed = os.getenv("CORS_ALLOWED_ORIGINS", "").strip()
 if allowed:

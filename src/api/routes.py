@@ -80,10 +80,13 @@ def _recompute_user_ratings(user_id: int):
         u.ratingCount = count
         u.ratingAvg = round(float(avg), 2)
         db.session.commit()
+# Alias
+@api.route("/register", methods=["POST", "OPTIONS"])
+def register_alias():
+    # Reuse the same logic
+    return post_users()
 
-# -------------------------
-# Auth
-# -------------------------
+# Authentication
 
 @api.route("/login", methods=["POST"])
 def login():
@@ -116,9 +119,9 @@ def auth_me():
         return jsonify({"msg": "user not found"}), 404
     return jsonify(user.serialize()), 200
 
-# -------------------------
+
 # Users
-# -------------------------
+
 
 @api.route('/users', methods=['GET'])
 def get_users():
@@ -233,7 +236,7 @@ def update_user(user_id):
         db.session.rollback()
         return jsonify({"message": "conflict updating user"}), 409
 
-# delete user (manual cascade)
+# delete user cascade
 @api.route('/users/<int:user_id>', methods=['DELETE'])
 @jwt_required()
 def delete_user(user_id):
@@ -290,9 +293,9 @@ def delete_user(user_id):
         db.session.rollback()
         return jsonify({"message": "failed to delete user", "detail": str(e)}), 500
 
-# -------------------------
+
 # User-scoped offers
-# -------------------------
+
 
 @api.route('/users/<int:user_id>/offers/created', methods=['GET'])
 @jwt_required()
@@ -321,9 +324,9 @@ def offers_user_applied(user_id):
         out.append(item)
     return jsonify(out), 200
 
-# -------------------------
+
 # Offers
-# -------------------------
+
 
 @api.route('/offers/latest', methods=['GET'])
 def offers_latest():
@@ -396,9 +399,9 @@ def create_offer():
     db.session.commit()
     return jsonify(offer.serialize()), 201
 
-# -------------------------
+
 # Matching workflow
-# -------------------------
+
 
 @api.route('/offers/<int:offer_id>/apply', methods=['POST'])
 @jwt_required()
@@ -574,9 +577,9 @@ def conclude_offer(offer_id):
     db.session.commit()
     return jsonify(offer.serialize()), 200
 
-# -------------------------
-# Messages (with chat gating)
-# -------------------------
+
+# Messages
+
 
 @api.route('/offers/<int:offer_id>/messages', methods=['GET'])
 @jwt_required()
@@ -625,9 +628,8 @@ def post_message_for_offer(offer_id):
     db.session.commit()
     return jsonify(msg.serialize()), 201
 
-# -------------------------
-# Reviews (bilateral, post-conclusion)
-# -------------------------
+
+# Reviews
 
 @api.route('/users/<int:user_id>/reviews', methods=['GET'])
 def get_reviews_for_user(user_id):
@@ -640,7 +642,6 @@ def get_reviews_for_user(user_id):
 @jwt_required()
 def create_review():
     data = request.get_json() or {}
-    # required
     try:
         rater_id = int(data.get("raterId"))
         rated_id = int(data.get("ratedId"))
@@ -654,7 +655,6 @@ def create_review():
     if rater_id == rated_id:
         return jsonify({"message": "you cannot review yourself"}), 400
 
-    # auth: rater must match token identity or be admin
     current_id = _current_user_id()
     role = _current_role()
     if not current_id:
@@ -662,14 +662,13 @@ def create_review():
     if role != "admin" and current_id != rater_id:
         return jsonify({"message": "forbidden"}), 403
 
-    # offer must exist & be closed
     offer = db.session.get(Offer, offer_id)
     if not offer:
         return jsonify({"message": "offer not found"}), 404
     if (offer.status or "").lower() != "closed":
         return jsonify({"message": "reviews allowed only after offer is closed"}), 409
 
-    # only accepted performer & distributor can review each other
+    # only accepted performer and distributor can review each other
     venue_id = offer.distributorId
     perf_id = offer.acceptedPerformerId
     if not venue_id or not perf_id:
@@ -701,7 +700,6 @@ def create_review():
         db.session.rollback()
         return jsonify({"message": "failed to create review", "detail": str(e)}), 500
 
-    # update aggregates on rated user
     _recompute_user_ratings(rated_id)
     return jsonify(review.serialize()), 201
 
@@ -717,9 +715,9 @@ def delete_review(review_id):
     _recompute_user_ratings(rated_id)
     return jsonify({"deleted": review_id}), 200
 
-# -------------------------
+
 # Latest users
-# -------------------------
+
 
 @api.route('/users/latest', methods=['GET'])
 def users_latest():
