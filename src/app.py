@@ -36,14 +36,33 @@ db.init_app(app)
 Migrate(app, db)
 
 # CORS (app-wide)
+allowed = os.getenv("CORS_ALLOWED_ORIGINS", "").strip()
+if allowed:
+    ORIGINS = [o.strip() for o in allowed.split(",") if o.strip()]
+else:
+    # Safe defaults: prod frontend + local dev
+    ORIGINS = [
+        "https://music-match-tt10.onrender.com",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+
 CORS(
     app,
-    resources={r"/api/*": {"origins": ["https://music-match-tt10.onrender.com", "https://music-match-backend-1949.onrender.com"]}},
-    supports_credentials=True,               # ok to keep or set False if not needed
-    allow_headers=["Content-Type", "Authorization"],
-    expose_headers=["Content-Type", "Authorization"],
+    resources={r"/api/*": {"origins": ORIGINS}},
+    # We use Authorization header tokens, not cookies → simpler CORS:
+    supports_credentials=False,
+    allow_headers=["Authorization", "Content-Type"],
+    expose_headers=["Authorization", "Content-Type"],
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 )
+
+# Ensure CORS headers are present even on errors / edge cases
+@app.after_request
+def _add_cors_headers(resp):
+    resp.headers.setdefault("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+    resp.headers.setdefault("Access-Control-Allow-Headers", "Authorization, Content-Type")
+    return resp
 
 # Register API
 app.register_blueprint(api_bp)
