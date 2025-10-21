@@ -83,7 +83,9 @@ def _recompute_user_ratings(user_id: int):
 # Alias
 @api.route("/register", methods=["POST", "OPTIONS"])
 def register_alias():
-    # Reuse the same logic
+    if request.method == "OPTIONS":
+        # Let the preflight succeed without touching the JSON body
+        return ("", 204)
     return post_users()
 
 # Authentication
